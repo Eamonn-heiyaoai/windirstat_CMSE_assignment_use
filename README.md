@@ -197,10 +197,14 @@ This repository and its AI functionality should not be presented as official Win
 ## 12. Team and Course Information
 
 - **Course:** Contemporary Methods in Software Engineering
-- **Team members:** _To be added_
-- **Project repository:** _To be added_
-- **Instructor / institution:** _Add if required by course guidelines_
-- **Final demo / report:** _Links to be added when available_
+- **Team members:**
+  - Mao Lingyun (Eamonn)
+  - Chen Zihan (Han)
+  - Dong Yuzhe (Dylan)
+  - Fang Letian (Lamelo)
+- **Project repository:** https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use
+- **Institution / programme:** Auckland University of Technology (AUT) – CJLU BCIS Cycle 13
+- **Final demo / report:** Not publicly linked in this repository.
 
 ---
 
