@@ -122,6 +122,7 @@ enum : std::uint8_t
     FIELD_ATTRIBUTES_WDS,
     FIELD_INDEX,
     FIELD_OWNER,
+    FIELD_EXTENSION,
     FIELD_SCAN_OUTCOME,
     FIELD_SCAN_ERROR,
     FIELD_COUNT
@@ -142,6 +143,7 @@ static std::vector<std::wstring> GetScanColumns()
         Localization::LookupNeutral(IDS_APP_TITLE) + L" " + Localization::Lookup(IDS_COL_ATTRIBUTES),
         Localization::Lookup(IDS_COL_INDEX),
         Localization::Lookup(IDS_COL_OWNER),
+        L"FileExtension",
         L"ScanOutcome",
         L"ScanError"
     };
@@ -583,6 +585,8 @@ static bool SaveResultsCsv(std::ofstream& outf, const std::vector<const CItem*>&
             std::to_underlying(itemType),
             index);
         if (includeOwner) std::format_to(std::back_inserter(buffer), ",{}", QuoteAndConvert(item->GetOwner(true)));
+        const std::wstring extension = item->IsTypeOrFlag(IT_FILE) ? item->GetExtension() : std::wstring{};
+        std::format_to(std::back_inserter(buffer), ",{}", QuoteAndConvert(extension));
         const auto& result = item->GetScanResult();
         std::format_to(std::back_inserter(buffer), ",{},{}",
             QuoteAndConvert(scanOutcomes[static_cast<size_t>(result.outcome)]),
@@ -648,8 +652,10 @@ static bool SaveResultsJson(std::ofstream& outf,
         if (includeOwner)
             std::format_to(std::back_inserter(buffer), ",\r\n  {}: {}",
                 keys[FIELD_OWNER], JsonQuoteW(item->GetOwner(true)));
+        const std::wstring extension = item->IsTypeOrFlag(IT_FILE) ? item->GetExtension() : std::wstring{};
         const auto& result = item->GetScanResult();
-        std::format_to(std::back_inserter(buffer), ",\r\n  {}: {},\r\n  {}: {}\r\n}}",
+        std::format_to(std::back_inserter(buffer), ",\r\n  {}: {},\r\n  {}: {},\r\n  {}: {}\r\n}}",
+            keys[keys.size() - 3], JsonQuoteW(extension),
             keys[keys.size() - 2], JsonQuoteW(scanOutcomes[static_cast<size_t>(result.outcome)]),
             keys.back(), JsonQuoteW(StorageSource::EscapeName(result.error, true)));
     });
