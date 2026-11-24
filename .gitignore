@@ -17,3 +17,11 @@ intermediate/
 
 # Specific Files
 /windirstat/res/LangStrings.h
+
+# Python cache and local environment
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+!.env.example
