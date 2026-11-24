@@ -319,6 +319,7 @@ protected:
     void OnUpdateToolsPermissions(CCmdUI* pCmdUI) const;
     void OnToolsStorageAnalytics() const;
     void OnUpdateToolsStorageAnalytics(CCmdUI* pCmdUI) const;
+    void OnToolsAIAnalysis() const;
     void UpdateToolsMenu(MenuRef menu) const;
     void OnViewWindowLayout();
     void OnConfigure();
@@ -469,6 +470,7 @@ inline std::span<const RouteEntry> CMainFrame::Routes()
         Route::Command<&OnToolsStorageAnalytics>(ID_TOOLS_STORAGE_ANALYTICS),
         Route::Update<&OnUpdateToolsStorageAnalytics>(ID_TOOLS_STORAGE_ANALYTICS),
         Route::Command<&OnViewWindowLayout>(ID_VIEW_WINDOW_LAYOUT),
+        Route::Command<&OnToolsAIAnalysis>(ID_TOOLS_AI_ANALYSIS),
     };
     return entries;
 }

@@ -5,6 +5,7 @@
 // Distributed WITHOUT ANY WARRANTY; see LICENSE.md for details.
 
 #include "pch.h"
+#include "CsvLoader.h"
 #include "FinderRemote.h"
 #include "Filtering.h"
 #include "TreeMap.h"
@@ -1171,3 +1172,117 @@ void CMainFrame::RebuildLayout(const bool resetPositions)
     GetActiveVisualization()->RedrawWindow();
     GetExtensionView()->RedrawWindow();
 }
+
+
+void CMainFrame::OnToolsAIAnalysis() const
+{
+    namespace fs = std::filesystem;
+
+    auto* model = CWinDirStatModel::Get();
+
+    // 1. Ensure that a completed scan is available.
+    if (!model->IsScanSettled() || model->GetRootItem() == nullptr)
+    {
+        ShowMessageBox(
+            *this,
+            L"Please complete a disk scan before using AI Analysis.",
+            L"AI Analysis",
+            MB_OK | MB_ICONINFORMATION
+        );
+        return;
+    }
+
+    // 2. Find the project directory containing the Python app.
+    wchar_t exeBuffer[MAX_PATH] = {};
+    if (GetModuleFileNameW(nullptr, exeBuffer, MAX_PATH) == 0)
+    {
+        ShowMessageBox(*this, L"Cannot locate the application.",
+                       L"AI Analysis", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    fs::path folder = fs::path(exeBuffer).parent_path();
+    fs::path projectRoot;
+    std::error_code ec;
+
+    for (int i = 0; i < 10; ++i)
+    {
+        if (fs::exists(folder / L"ai_pipeline" / L"app.py", ec))
+        {
+            projectRoot = folder;
+            break;
+        }
+
+        fs::path parent = folder.parent_path();
+        if (parent.empty() || parent == folder)
+            break;
+
+        folder = parent;
+    }
+
+    if (projectRoot.empty())
+    {
+        ShowMessageBox(
+            *this,
+            L"Cannot find the AI analysis module in the project folder.",
+            L"AI Analysis",
+            MB_OK | MB_ICONERROR
+        );
+        return;
+    }
+
+    // 3. Create a temporary JSON report.
+    wchar_t tempDir[MAX_PATH] = {};
+    wchar_t tempName[MAX_PATH] = {};
+
+    if (GetTempPathW(MAX_PATH, tempDir) == 0 ||
+        GetTempFileNameW(tempDir, L"WDA", 0, tempName) == 0)
+    {
+        ShowMessageBox(*this, L"Cannot create a temporary report.",
+                       L"AI Analysis", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    fs::path reportPath(tempName);
+    reportPath.replace_extension(L".json");
+
+    // Remove the reserved .tmp file before exporting JSON.
+    DeleteFileW(tempName);
+
+    if (!SaveResults(reportPath.wstring(), model->GetRootItem()))
+    {
+        DeleteFileW(reportPath.c_str());
+
+        ShowMessageBox(*this, L"Failed to export the scan results.",
+                       L"AI Analysis", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // 4. Start the Python AI interface with the report path.
+    const std::wstring parameters =
+        L"-m ai_pipeline.app \"" + reportPath.wstring() + L"\"";
+
+    const std::wstring workingDir = projectRoot.wstring();
+
+    HINSTANCE result = ShellExecuteW(
+        m_hWnd,
+        L"open",
+        L"pythonw.exe",
+        parameters.c_str(),
+        workingDir.c_str(),
+        SW_SHOWNORMAL
+    );
+
+    if (reinterpret_cast<INT_PTR>(result) <= 32)
+    {
+        DeleteFileW(reportPath.c_str());
+
+        ShowMessageBox(
+            *this,
+            L"Cannot start Python. Please check your Python installation.",
+            L"AI Analysis",
+            MB_OK | MB_ICONERROR
+        );
+    }
+}
+
