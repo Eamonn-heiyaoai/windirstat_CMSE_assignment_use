@@ -59,7 +59,7 @@ The app reads the key when it is ready to send a confirmed request. Keep real ke
 3. Select **Tools → AI Analysis**.
 4. Choose **中文 / English**, set the priority-file threshold and choose whether to enable DeepSeek. Leave the box unchecked for offline suggestions.
 5. Click **开始分析 / Analyze**. If DeepSeek is enabled, review the data-sharing prompt. Declining continues locally. The app also shows local suggestions if it receives no usable online findings.
-6. To get more help with an online result, choose **查看清理步骤 / View cleanup steps** on that item and confirm. The steps and possible effects appear below the item. For uncertain directories, the guide explains what to check before clearing anything. Reopening an already generated guide in the same language reuses it until you start a new analysis.
+6. Select an item in **清理建议 / Cleanup suggestions** to read its details. For a DeepSeek result, click **查看清理步骤 / View cleanup steps** and confirm. The steps and possible effects appear in the details pane. For uncertain directories, the guide explains what to check before clearing anything. Reopening an already generated guide in the same language reuses it until you start a new analysis.
 
 The integrated workflow attempts to remove its temporary JSON report after reading it or closing the window. Parsed data stays in memory for repeat analysis while the window is open.
 

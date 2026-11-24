@@ -127,6 +127,11 @@ def size_label(mib):
     return f"{mib:,.2f} MiB"
 
 
+def suggestion_size(item):
+    size = item["size_bytes"]
+    return size_label(size / MB) if size >= 0.01 * MB else f"{size:,} B"
+
+
 def ranked_suggestions(summary):
     online = summary.get("online_items", [])
     cleanup = ([(item, "online") for item in online] if online else
@@ -145,8 +150,7 @@ def suggestion_page(items, expanded, page):
 
 
 def format_online_item(item, language, show_online_text=True):
-    size = item["size_bytes"]
-    label = size_label(size / MB) if size >= 0.01 * MB else f"{size:,} B"
+    label = suggestion_size(item)
     name = item["name"] if show_online_text else item["label"]
     if language == "zh":
         usage = "估算占用" if item["uses_logical_size"] else "扫描占用"
@@ -160,6 +164,28 @@ def format_online_item(item, language, show_online_text=True):
                   if item["kind"] != "review" else "Check what this directory is used for before making changes.")
     details = [heading, item["label"], item["reason"]] if show_online_text else [heading]
     return "\n".join([*details, action])
+
+
+def format_local_item(item, source, language):
+    label = suggestion_size(item)
+    if source == "uninstall":
+        if language == "zh":
+            label = f"扫描到的安装目录占用约 {label}"
+            action = "卸载前请确认是否需要保留软件的数据和设置。若已不用，可在 Windows「设置 → 应用 → 已安装的应用」中卸载。"
+        else:
+            label = f"scanned installation folder: about {label}"
+            action = ("Check whether you still need the app or its data and settings. "
+                      "If you no longer use it, uninstall it in Windows Settings → Apps → Installed apps.")
+        return f"{item['name']} ({label})\n{action}"
+
+    name, reason, action, impact = CLEANUP_TEXT[item["category"]][language]
+    if language == "zh":
+        usage = "估算占用" if item["uses_logical_size"] else "扫描占用"
+        heading = f"{name}（{usage} {label}）"
+    else:
+        usage = "estimated size" if item["uses_logical_size"] else "size on disk"
+        heading = f"{name} ({label} {usage})"
+    return f"{heading}\n{reason}\n{action} {impact}"
 
 
 def format_cleanup_advice(summary, language="zh", *, expanded=False, page=0,
@@ -178,29 +204,13 @@ def format_cleanup_advice(summary, language="zh", *, expanded=False, page=0,
     uninstall = []
     online = []
     for item, source in items:
-        size = item["size_bytes"]
-        label = size_label(size / MB) if size >= 0.01 * MB else f"{size:,} B"
-        if language == "zh":
-            usage = "估算占用" if item["uses_logical_size"] else "扫描占用"
-        else:
-            usage = "estimated size" if item["uses_logical_size"] else "size on disk"
         if source == "uninstall":
-            name = item["name"]
-            label = (f"扫描到的安装目录占用约 {label}" if language == "zh"
-                     else f"scanned installation folder: about {label}")
-            action = ("卸载前请确认是否需要保留软件的数据和设置。若已不用，可在 Windows「设置 → 应用 → 已安装的应用」中卸载。"
-                      if language == "zh" else
-                      "Check whether you still need the app or its data and settings. "
-                      "If you no longer use it, uninstall it in Windows Settings → Apps → Installed apps.")
-            uninstall.append(f"{name} ({label})\n{action}")
+            uninstall.append(format_local_item(item, source, language))
         elif source == "online":
             if include_online:
                 online.append(format_online_item(item, language, show_online_text))
         else:
-            category = item["category"]
-            name, reason, action, impact = CLEANUP_TEXT[category][language]
-            heading = f"{name}（{usage} {label}）" if language == "zh" else f"{name} ({label} {usage})"
-            cleanup.append(f"{heading}\n{reason}\n{action} {impact}")
+            cleanup.append(format_local_item(item, source, language))
 
     sections = []
     if online:
