@@ -1,147 +1,139 @@
 # AI-Assisted Disk Space Analysis and File Organisation Tool
 
-**Optional AI-assisted disk organisation advice built on WinDirStat**
+A course-project extension of [WinDirStat](https://github.com/windirstat/windirstat) for Windows. It combines WinDirStat's existing scanner with a local Python analysis interface and optional DeepSeek-generated **review advice**. It does **not** delete or move files automatically.
 
-- **Course:** Contemporary Methods in Software Engineering
-- **Project status:** Working prototype
-- **Project type:** Student project based on an open-source application
+> Independent student project for Contemporary Methods in Software Engineering (AUT–CJLU BCIS Cycle 13). Not an official WinDirStat release.
 
-This is an independent course project based on the open-source WinDirStat application for Windows.
+## Features
 
-## 1. Project Overview
+- Scan drives or selected folders with the existing WinDirStat desktop interface.
+- Open **Tools → AI Analysis** after a scan; the modified WinDirStat exports a temporary JSON report and passes it to the AI window automatically.
+- Alternatively, launch the Python interface independently and select an existing CSV or JSON WinDirStat report.
+- Analyse all successfully scanned regular-file metadata locally: total logical size, file counts, category totals, top extensions, size bands and large-file summaries.
+- Choose a minimum size threshold for priority-file review. All qualifying file records still contribute to overall statistics.
+- Switch the interface between **中文** and **English**.
+- Use local, generic advice without an API key, or explicitly enable **DeepSeek AI** for detailed suggestions.
+- Send only aggregate statistics and anonymous type/size information to DeepSeek; no raw file names, paths or file contents are sent in the API request.
+- Cache parsed records in the current window for repeat analyses and attempt to remove temporary JSON reports created by the WinDirStat-to-Python workflow.
 
-WinDirStat scans drives and folders, visualizes storage usage, identifies large or duplicate files, and exports scan results in CSV or JSON format. This project adds a desktop assistant that summarizes a scan report and helps users decide what to inspect first. It runs locally by default and can optionally request disk organisation advice from DeepSeek.
+**Limitations:** Advice is based on metadata, not file contents, actual application usage or verified deletion safety. Scans may have inaccessible records; logical file-size totals are not necessarily physical space recoverable. The AI interface does not locate or delete individual files, and it does not validate specific files as safe to remove.
 
-## 2. Current Features
+## Requirements
 
-| Component | Features |
-| --- | --- |
-| WinDirStat | Scan drives or folders, visualize file and folder sizes, inspect large or duplicate files, and export reports as CSV or JSON |
-| AI Analysis menu | Open the assistant with a completed scan report |
-| Standalone assistant | Import a WinDirStat CSV or JSON report and view local statistics and general organisation guidance |
-| Assistant settings | Switch between Simplified Chinese and English and set the minimum size for priority files |
-| Optional DeepSeek advice | Generate a plain-text report with storage findings, review priorities, and cautions |
+- Windows 11 development/test environment (other Windows versions have not been verified by this team).
+- Visual Studio with the **Desktop development with C++** workload, the build tools and Windows SDK required by this WinDirStat fork.
+- Python **3.11** available as `python` and `pythonw.exe` (the C++ launcher starts the GUI using `pythonw.exe`).
+- Internet access and a valid DeepSeek API key with usable credits **only** for optional AI advice.
 
-## 3. User Workflow
+The Python pipeline uses Python standard-library modules including `tkinter`, `unittest`, `json` and `urllib`; no third-party Python packages are required by these modules. Visual Studio C++ build prerequisites and toolset versions should be checked against the repository's solution and upstream WinDirStat build guidance.
 
-1. Scan a drive or folder using WinDirStat.
-2. After the scan completes, open **Tools > AI Analysis** to pass the result to the assistant. To reuse a previous report, open the assistant directly and select the CSV or JSON file.
-3. Set the priority file threshold if needed. The default is 100 MiB. Click **Analyze** or **开始分析** to generate the summary.
-4. Review the file counts, sizes, and category breakdown. Enable DeepSeek before analyzing if you want AI-generated guidance.
-5. Review the files in WinDirStat or File Explorer before taking any action.
-
-## 4. Local Analysis and DeepSeek Advice
-
-Local analysis uses the logical size of successfully scanned file records. The summary shows the total file count, logical size, priority file count, and storage usage by category. The threshold determines which files count as priority files. All eligible files contribute to the overall counts and sizes.
-
-In local mode, the assistant shows general guidance alongside the statistics. With DeepSeek enabled, it requests findings based on the scan summary, suggested review steps, and cautions about system, application, and personal files. If the request fails or the response is unusable, the assistant displays an error and keeps the local statistics visible. Clear the DeepSeek checkbox and analyze again to see the local guidance.
-
-## 5. System Design
-
-| Component | Responsibility |
-| --- | --- |
-| [WinDirStat menu handler](windirstat/MainFrame.Commands.cpp) | Export the completed scan to a temporary JSON file and start the assistant with `pythonw.exe` |
-| [`ai_pipeline/app.py`](ai_pipeline/app.py) | Provide the Tkinter interface, load the report, run analysis in the background, and display results or errors |
-| [`ai_pipeline/report_parser.py`](ai_pipeline/report_parser.py) | Read and normalize WinDirStat CSV and JSON records |
-| [`ai_pipeline/disk_analyzer.py`](ai_pipeline/disk_analyzer.py) | Aggregate file counts and sizes by type, extension, and size range |
-| [`ai_pipeline/candidate_selector.py`](ai_pipeline/candidate_selector.py) | Classify extensions and provide a separate command-line candidate ranking |
-| [`ai_pipeline/ai_advisor.py`](ai_pipeline/ai_advisor.py) | Provide local guidance or request and check a DeepSeek text response |
-
-## 6. Prototype Scope
-
-The prototype covers the completed-scan workflow, report import, local statistics, optional DeepSeek advice, and visible API error handling. The assistant leaves cleanup decisions and file operations to the user. Per-file risk ratings, duplicate-aware recommendations, and estimates of recoverable space remain outside the current assistant workflow.
-
-## 7. Privacy and Safety
-
-- **Local by default.** The assistant sends scan-derived statistics to DeepSeek only when the user enables the DeepSeek option and runs analysis.
-- **Data sent to DeepSeek.** The request includes file counts, sizes, the priority threshold, category summaries, up to 20 extension summaries, size-range totals, and up to 15 large-file records containing only size, category, and extension. File names, paths, and contents stay local.
-- **API credentials.** The assistant reads the key from the Git-ignored `.env` file and uses it in the HTTPS authorization header.
-- **Temporary report.** The menu flow writes a temporary JSON report. The assistant attempts to remove it after importing it or when the window closes. Reports selected manually remain available for reuse.
-
-## 8. Getting Started
-
-### A. Build and run the WinDirStat desktop application
-
-On Windows, install Visual Studio 2026 with the **Desktop development with C++** workload. Ensure **MSVC Build Tools for x64/x86**, **C++ ATL for x64/x86**, and a **Windows SDK** are selected. The project uses the **v145** platform toolset and **C++23**. The first build can download xxHash if it is missing.
-
-1. Open [`windirstat.sln`](windirstat.sln) in Visual Studio 2026.
-2. Select **Release | x64** and choose **Build > Build Solution**.
-3. From the repository root, run the built executable.
+## Clone and build
 
 ```powershell
-.\build\WinDirStat_x64.exe
+git clone https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use.git
+cd windirstat_CMSE_assignment_use
 ```
 
-### B. Open the assistant from WinDirStat
+Open the repository's `windirstat.sln` in Visual Studio, select the appropriate **x64** configuration, and choose **Build → Build Solution**. Use **Debug → Start Without Debugging (Ctrl+F5)** to run the *modified* WinDirStat, rather than an independently installed official WinDirStat.
 
-Install Python 3 with Tcl/Tk support. Python 3.12 is a working option. The menu uses `pythonw.exe`, so make sure Windows can find it, for example by adding its Python installation directory to `PATH`. Keep the built WinDirStat executable in the repository's `build` directory so it can find `ai_pipeline`.
+The C++ launcher searches upward from the executable directory for `ai_pipeline/app.py`, so keep the build output inside the cloned repository's directory tree. The launcher assumes `pythonw.exe` is discoverable via Windows. If it cannot be found, install Python 3.11 and verify Python is available from a fresh terminal.
 
-Scan a drive or folder, wait for the scan to complete, then choose **Tools > AI Analysis**. The report path is filled in automatically. Click **Analyze** to run local analysis.
+## Configure DeepSeek (optional)
 
-### C. Run the assistant with an exported report
+**The API key is never required for local analysis.** To enable external advice:
 
-From the repository root, run the following command with a Python interpreter that includes Tkinter. The assistant uses the Python standard library, so there are no additional Python packages to install.
+1. Get an API key from [DeepSeek Platform](https://platform.deepseek.com/) and ensure the account has usable credits.
+2. In the repository root, copy the committed template to a local file:
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+3. Open `.env` and fill in the key:
+   ```dotenv
+   DEEPSEEK_API_KEY=YOUR_OWN_KEY
+   ```
+4. Save `.env`. The application reads this file **each time** AI advice is requested.
+
+The `.env` file is excluded by `.gitignore`; only the empty `.env.example` is committed. **Never commit real keys, paste them into issues, or share them publicly.** For a shared course-demo key, distribute it privately; any user of that key consumes the same account's credits. This local file is not encrypted, so protect access to the computer and rotate a shared key if it may have been exposed.
+
+## Run the application
+
+### Option A: Integrated WinDirStat workflow
+
+1. Start the locally built WinDirStat executable.
+2. Scan a drive or folder and allow the scan to finish.
+3. Select **Tools → AI Analysis**.
+4. In the AI window, choose **中文 / English**, set the minimum priority-file size and choose whether to use DeepSeek.
+5. Click **开始分析 / Analyze**. Review the space statistics and organization advice. Scroll to read longer answers.
+6. Change settings and click Analyze again as needed. The Python window can reuse its in-memory parsed report; enabling AI for another run makes another API call.
+
+The automatically created temporary report is intended for the integrated workflow. It is removed after reading, or when the window closes before analysis; previously parsed data can remain in memory until the window closes.
+
+### Option B: Open a saved report directly
+
+From the repository root:
 
 ```powershell
 python -m ai_pipeline.app
 ```
 
-If your default Python has an incomplete Tcl/Tk installation, use the full path to a Python executable that has Tkinter. Run `python -m tkinter` to check the selected interpreter.
+Use **选择报告 / Choose Report** to select an existing WinDirStat `.csv` or `.json` file. The application does **not** intentionally delete ordinary user-selected reports.
 
-To create a report, use **File > Save Results To CSV/JSON** in WinDirStat. In the assistant, click **Choose file**, select the report, and click **Analyze**. If an older export is missing fields such as `ScanOutcome` or `ScanError`, export the scan again using the build from this repository.
-
-### D. Enable DeepSeek advice
-
-Create a file named `.env` in the repository root, next to `windirstat.sln`. Add this line with your own DeepSeek API key.
-
-```dotenv
-DEEPSEEK_API_KEY=your_key_here
-```
-
-In the assistant, select **Use DeepSeek AI** and click **Analyze**. The implementation calls DeepSeek using the `deepseek-flash` model. The API key and an internet connection are only needed for this mode.
-
-## 9. Testing and Evaluation
-
-Run the Python unit tests from the repository root.
+To pre-fill a report path:
 
 ```powershell
-python -m unittest ai_pipeline.test_pipeline
+python -m ai_pipeline.app "C:\path\to\scan.json"
 ```
 
-The tests cover CSV and JSON parsing, file classification, candidate ranking and size thresholds, exclusion of failed scan records, and omission of file names and paths from candidate output.
+For command-line aggregate inspection:
 
-For a manual demo, scan a small folder and open **Tools > AI Analysis**. Verify that the report is prefilled and local statistics appear after analysis. Export the same scan and import it into the standalone assistant to check the second launch path. With a configured key, enable DeepSeek and check that the advice appears alongside the local summary.
+```powershell
+python -m ai_pipeline.disk_analyzer "C:\path\to\scan.json" --min-mb 100
+```
 
-Evaluation focuses on whether the guidance is clear, relevant to the scan, and useful alongside the local statistics.
+## Testing and continuous integration
 
-## 10. Known Limitations
+Run the included Python unit tests from the repository root:
 
-- The totals reflect logical sizes from the successfully scanned files in the supplied report. Actual disk usage and recoverable space can differ due to allocation, hard links, deduplication, or incomplete scan coverage.
-- Metadata and model-generated advice cannot establish a file's importance or whether it is safe to delete.
-- The assistant expects the WinDirStat CSV or JSON report schema. Older or differently structured exports may be rejected.
-- DeepSeek advice depends on the configured key, network access, service availability, and account balance.
+```powershell
+python -m unittest ai_pipeline.test_pipeline -v
+```
 
-## 11. Open-Source Attribution and Licenses
+The repository contains 10 Python unit tests for report parsing and candidate selection. The GitHub Actions workflow at `.github/workflows/python-tests.yml` runs the same test command on Python 3.11 for pushes and pull requests. [Example successful workflow run](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/actions/runs/45379180634).
 
-This student project builds on **WinDirStat**, created by the WinDirStat Team. The original software is available at:
+These unit tests do **not** constitute automated coverage of the full native C++ GUI, DeepSeek network responses, or temporary-file lifecycle. End-to-end behavior was also exercised manually; further automated integration and failure-path tests are future work.
 
-- Source code: https://github.com/windirstat/windirstat
-- Project website: https://windirstat.net/
-- User documentation: https://github.com/windirstat/windirstat/wiki
+## Architecture and privacy
 
-WinDirStat is distributed under **GPL v3 or later**, while some portions of its source have more permissive terms. The original logo and derivatives are licensed under **CC BY 3.0**. Preserve applicable copyright notices and source-level license terms when reusing, modifying, or distributing the upstream code. Determine and document the licensing of the team's additional code and dependencies before distributing the project.
+```text
+WinDirStat C++ scanning/UI
+    └── Tools → AI Analysis
+          └── temporary JSON export (WinDirStat SaveResults)
+                └── ai_pipeline/report_parser.py
+                      └── ai_pipeline/disk_analyzer.py
+                            ├── Local statistics / generic advice
+                            └── Optional DeepSeek API (ai_advisor.py)
+                                  └── Suggestions in the Tkinter GUI (app.py)
+```
 
-This repository and its AI functionality should not be presented as official WinDirStat software. For trusted upstream downloads, use the official sources linked above.
+The Python report parser operates on exported file-system **metadata**, not file contents. Its in-memory normalized records retain basenames, while the outgoing AI payload is explicitly constructed from aggregated counts, sizes, file extensions and anonymous large-file metadata. DeepSeek output is advisory text; no AI-generated instructions automatically perform file-system changes.
 
-## 12. Team and Course Information
+## Project evidence
 
+- [Iteration 1 issue and acceptance criteria](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/issues/7)
+- [Parser PR #8](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/pull/8)
+- [Privacy-aware candidate selector PR #9](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/pull/9)
+- [Automated tests PR #10](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/pull/10)
+- [GitHub Actions PR #11](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/pull/11)
+- [First successful automated run](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/actions/runs/45342164570)
+- [Detailed analysis and AI extension commit](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/commit/081a99eebcb27883376097f0ca8805598717e977)
 
-- **Course:** Contemporary Methods in Software Engineering
-- **Team members:**
-  - Mao Lingyun (Eamonn)
-  - Chen Zihan (Han)
-  - Dong Yuzhe (Dylan)
-  - Fang Letian (Lamelo)
-- **Project repository:** https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use
-- **Institution / programme:** Auckland University of Technology (AUT) – CJLU BCIS Cycle 13
-- **Final demo / report:** Not publicly linked in this repository.
+## Team
+
+- Mao Lingyun (Eamonn)
+- Chen Zihan (Han)
+- Dong Yuzhe (Dylan)
+- Fang Letian (Lamelo)
+
+## Attribution and licensing
+
+Based on [WinDirStat](https://github.com/windirstat/windirstat), an open-source application distributed under GPL-3.0-or-later terms, with additional notices and licence terms in the upstream repository. Preserve applicable notices when reusing or distributing the application. This project is not affiliated with, endorsed by, or maintained by the WinDirStat team.
