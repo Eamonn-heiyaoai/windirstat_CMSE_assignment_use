@@ -1173,7 +1173,6 @@ void CMainFrame::RebuildLayout(const bool resetPositions)
     GetExtensionView()->RedrawWindow();
 }
 
-
 void CMainFrame::OnToolsAIAnalysis() const
 {
     namespace fs = std::filesystem;
@@ -1285,4 +1284,3 @@ void CMainFrame::OnToolsAIAnalysis() const
         );
     }
 }
-
