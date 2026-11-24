@@ -12,7 +12,6 @@ from ai_pipeline.disk_analyzer import analyze_disk
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL_NAME = "deepseek-flash"
 
-# The .env file is located in the repository root.
 CONFIG_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
@@ -21,8 +20,8 @@ def load_api_key():
 
     if not CONFIG_FILE.is_file():
         raise ValueError(
-            "DeepSeek API key is not configured. "
-            "Please create a .env file from .env.example."
+            "Missing .env file. Copy .env.example to .env "
+            "and configure your API key."
         )
 
     try:
@@ -47,42 +46,75 @@ def load_api_key():
             if key:
                 return key
 
-            break
-
     raise ValueError(
         "DeepSeek API key is missing. "
-        "Please fill in DEEPSEEK_API_KEY in the .env file."
+        "Please fill in DEEPSEEK_API_KEY in .env."
     )
 
 
-def get_advice(summary, use_api=False, language="zh"):
-    """Generate safe disk organization advice."""
+def prepare_ai_summary(summary):
+    """
+    Prepare anonymous statistics for DeepSeek.
 
-    if language not in ("zh", "en"):
-        raise ValueError("Unsupported language")
+    No original file names, paths or contents are included.
+    """
 
-    safe_summary = {
+    return {
         "total_files": summary["total_files"],
         "total_size_mb": summary["total_size_mb"],
         "minimum_size_mb": summary["minimum_size_mb"],
         "large_file_count": summary["large_file_count"],
+
+        "large_file_total_mb": summary.get(
+            "large_file_total_mb", 0
+        ),
+        "large_file_percentage": summary.get(
+            "large_file_percentage", 0
+        ),
+
         "file_categories": summary["file_categories"],
+
+        "top_extensions": summary.get(
+            "top_extensions", []
+        )[:20],
+
+        "size_distribution": summary.get(
+            "size_distribution", {}
+        ),
+
+        "top_large_files": summary.get(
+            "top_large_files", []
+        )[:15]
     }
 
-    # Local mode does not require an API key.
+
+def get_advice(summary, use_api=False, language="zh"):
+    """Generate detailed and cautious disk organization advice."""
+
+    if language not in ("zh", "en"):
+        raise ValueError("Unsupported language")
+
+    safe_summary = prepare_ai_summary(summary)
+
+    # Local mode: no network request is sent.
     if not use_api:
         if language == "zh":
             return (
-                "Local analysis completed. "
-                "Please review large files before organizing them."
+                "本地统计已完成。\n\n"
+                "建议先查看占用空间最大的文件类型，"
+                "并结合大文件数量决定检查顺序。\n\n"
+                "不要仅凭文件扩展名或大小判断文件是否"
+                "可以删除，尤其需要谨慎处理系统文件。"
             )
 
         return (
-            "Local analysis completed. "
-            "Review large files before organizing them."
+            "Local analysis is complete.\n\n"
+            "Review the file types using the most storage space "
+            "and prioritize large files.\n\n"
+            "Do not assume a file is safe to delete based only "
+            "on its extension or size."
         )
 
-    # Read the local key each time AI analysis is requested.
     api_key = load_api_key()
 
     output_language = (
@@ -91,45 +123,94 @@ def get_advice(summary, use_api=False, language="zh"):
         else "English"
     )
 
+    system_prompt = (
+        "You are a professional Windows disk organization assistant. "
+        f"Write entirely in {output_language}. "
+        "Your audience consists of ordinary computer users "
+        "with little technical knowledge. "
+        "Use friendly, clear, practical language. "
+
+        "The input contains anonymous disk scan statistics: "
+        "file counts, total sizes, categories, extension rankings, "
+        "file size distribution, and large-file metadata. "
+
+        "Analyze all available statistics carefully. "
+        "Prioritize findings by storage impact. "
+        "Explain which types occupy the most space, "
+        "what these file types commonly represent, "
+        "and what the user should check first. "
+
+        "Provide an organized report with: "
+        "1. A brief overall storage assessment. "
+        "2. Three to five important findings with numbers. "
+        "3. A prioritized list of practical review steps. "
+        "4. Warnings about files that may be important "
+        "to Windows, installed applications, or user data. "
+
+        "Use the actual numbers provided, with sensible rounding. "
+        "Use GiB for large sizes and MiB for smaller sizes. "
+        "Do not invent statistics. "
+        "Do not treat all files in a category as disposable. "
+        "Extensions only indicate possible file types. "
+        "A file's size alone cannot establish whether it is safe "
+        "or useful to delete. "
+
+        "You do not know exact file names, locations, contents, "
+        "or whether an application currently uses a file. "
+        "Never invent these details. "
+        "Never say that a particular file is safe to delete. "
+        "Never recommend automatically deleting or moving files. "
+        "Always ask the user to confirm a file's purpose "
+        "before modifying it. "
+
+        "Avoid generic advice when the available statistics "
+        "support a more specific observation. "
+        "Keep the report useful rather than excessively long. "
+        "Use plain text, numbered points and short paragraphs. "
+        "Do not use Markdown symbols such as **, # or tables."
+    )
+
+    user_prompt = (
+        "Please analyze my Windows disk scan report.\n\n"
+        "I want to understand:\n"
+        "- What is taking up the most space?\n"
+        "- Which file types and extensions deserve attention?\n"
+        "- How are large files distributed?\n"
+        "- What should I inspect first to organize storage safely?\n"
+        "- Which types require extra caution?\n\n"
+        "Here are the anonymous statistics:\n"
+        + json.dumps(
+            safe_summary,
+            ensure_ascii=False,
+            indent=2
+        )
+    )
+
     payload = {
         "model": MODEL_NAME,
+        "thinking": {
+            "type": "disabled"
+        },
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You are a careful Windows disk organization "
-                    "assistant. "
-                    f"Respond entirely in {output_language}. "
-                    "Use clear and simple language for ordinary users. "
-                    "Give five short and practical suggestions. "
-                    "Only analyze the provided disk statistics. "
-                    "You do not know individual files, names, paths, "
-                    "or file contents. Never invent those details. "
-                    "Never recommend blindly deleting system files. "
-                    "Remind users to review files before deleting "
-                    "or moving anything. "
-                    "Do not suggest automatic deletion."
-                )
+                "content": system_prompt
             },
             {
                 "role": "user",
-                "content": (
-                    "Analyze these disk statistics and give "
-                    "practical organization advice:\n"
-                    + json.dumps(
-                        safe_summary,
-                        ensure_ascii=False
-                    )
-                )
+                "content": user_prompt
             }
         ],
-        "max_tokens": 800,
+        "max_tokens": 2500,
         "stream": False
     }
 
     request = urllib.request.Request(
         API_URL,
-        data=json.dumps(payload).encode("utf-8"),
+        data=json.dumps(
+            payload,
+            ensure_ascii=False
+        ).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -139,7 +220,8 @@ def get_advice(summary, use_api=False, language="zh"):
 
     try:
         with urllib.request.urlopen(
-            request, timeout=40
+            request,
+            timeout=90
         ) as response:
             result = json.load(response)
 
@@ -151,9 +233,7 @@ def get_advice(summary, use_api=False, language="zh"):
         elif error.code == 429:
             message = "Too many requests. Please try again later."
         else:
-            message = (
-                f"DeepSeek API error: HTTP {error.code}"
-            )
+            message = f"DeepSeek API error: HTTP {error.code}"
 
         raise RuntimeError(message) from error
 
@@ -163,36 +243,59 @@ def get_advice(summary, use_api=False, language="zh"):
         ) from error
 
     try:
-        advice = result["choices"][0]["message"]["content"]
+        choices = result.get("choices", [])
 
-        if not isinstance(advice, str) or not advice.strip():
-            raise ValueError("Empty AI response")
+        if not choices:
+            raise RuntimeError(
+                "DeepSeek returned no answer choices."
+            )
 
-        return advice.strip()
+        choice = choices[0]
+        finish_reason = choice.get(
+            "finish_reason", "unknown"
+        )
 
-    except (
-        KeyError, IndexError, TypeError, ValueError
-    ) as error:
+        message = choice.get("message") or {}
+        content = message.get("content")
+
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+
+        if finish_reason == "length":
+            raise RuntimeError(
+                "DeepSeek output exceeded the token limit. "
+                "Please try again."
+            )
+
         raise RuntimeError(
-            "Unexpected DeepSeek response format."
+            "DeepSeek returned an empty answer "
+            f"(finish_reason={finish_reason})."
+        )
+
+    except (AttributeError, TypeError) as error:
+        raise RuntimeError(
+            "Unexpected DeepSeek response structure."
         ) from error
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="AI disk organization assistant"
+        description="Detailed AI Disk Organization Assistant"
     )
 
     parser.add_argument("report_path")
+
     parser.add_argument(
         "--min-mb",
         type=float,
         default=100
     )
+
     parser.add_argument(
         "--api",
         action="store_true"
     )
+
     parser.add_argument(
         "--language",
         choices=["zh", "en"],
@@ -216,9 +319,7 @@ def main():
 
         print(advice)
 
-    except (
-        ValueError, OSError, RuntimeError
-    ) as error:
+    except (ValueError, OSError, RuntimeError) as error:
         parser.exit(1, f"Error: {error}\n")
 
 
