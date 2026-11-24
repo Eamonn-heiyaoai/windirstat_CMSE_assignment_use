@@ -66,6 +66,7 @@ void CWinDirStatModel::ClearScanState()
     delete m_rootItem;
     m_rootItem = nullptr;
     m_zoomItem = nullptr;
+    m_isLiveScan = false;
 }
 
 bool CWinDirStatModel::ResetScan()
@@ -87,6 +88,7 @@ bool CWinDirStatModel::StartScan(const std::wstring& pathSpec)
 
     // Prepare for new root and delete any existing data
     ClearScanState();
+    m_isLiveScan = true;
 
     // Persist the full scan spec, which may contain pipe-separated roots.
     Get()->SetScanPathSpec(JoinString(selections));

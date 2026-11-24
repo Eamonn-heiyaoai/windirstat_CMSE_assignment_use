@@ -7,25 +7,21 @@ A course-project extension of [WinDirStat](https://github.com/windirstat/windirs
 ## Features
 
 - Scan drives or selected folders with the existing WinDirStat desktop interface.
-- Open **Tools → AI Analysis** after a scan; the modified WinDirStat exports a temporary JSON report and passes it to the AI window automatically.
-- Alternatively, launch the Python interface independently and select an existing CSV or JSON WinDirStat report.
-- Analyse all successfully scanned regular-file metadata locally: total logical size, file counts, category totals, top extensions, size bands and large-file summaries.
-- Choose a minimum size threshold for priority-file review. All qualifying file records still contribute to overall statistics.
-- Switch the interface between **中文** and **English**.
-- Use local, generic advice without an API key, or explicitly enable **DeepSeek AI** for detailed suggestions.
-- Send only aggregate statistics and anonymous type/size information to DeepSeek; no raw file names, paths or file contents are sent in the API request.
-- Cache parsed records in the current window for repeat analyses and attempt to remove temporary JSON reports created by the WinDirStat-to-Python workflow.
-
-**Limitations:** Advice is based on metadata, not file contents, actual application usage or verified deletion safety. Scans may have inaccessible records; logical file-size totals are not necessarily physical space recoverable. The AI interface does not locate or delete individual files, and it does not validate specific files as safe to remove.
+- Open **Tools → AI Analysis** after a scan, or open an existing WinDirStat CSV or JSON report in the Python interface.
+- Review file counts, logical sizes, file types and size ranges. The minimum size setting controls which files count as priority files.
+- Get offline suggestions for Edge, Chrome and Firefox caches, user temporary files, and caches for pip, VS Code, VS Code Insiders, Discord, npm and NuGet.
+- After a fresh WinDirStat scan, review registered desktop apps whose installation directories were fully scanned and occupy at least 1 GiB. Windows Settings provides the uninstall option.
+- Optionally use DeepSeek to identify unfamiliar AppData directories and request step-by-step guidance for an individual result. Each request requires confirmation.
+- Browse suggestions 10 at a time or expand the complete list. The interface supports **中文** and **English**.
 
 ## Requirements
 
 - Windows 11 development/test environment (other Windows versions have not been verified by this team).
-- Visual Studio with the **Desktop development with C++** workload, the build tools and Windows SDK required by this WinDirStat fork.
-- Python **3.11** available as `python` and `pythonw.exe` (the C++ launcher starts the GUI using `pythonw.exe`).
+- Visual Studio with the **Desktop development with C++** workload, the **v145** toolset configured in the project, and a Windows SDK.
+- Python **3.11** with Tkinter. Use `python` from the terminal and make `pythonw.exe` available to the WinDirStat launcher.
 - Internet access and a valid DeepSeek API key with usable credits **only** for optional AI advice.
 
-The Python pipeline uses Python standard-library modules including `tkinter`, `unittest`, `json` and `urllib`; no third-party Python packages are required by these modules. Visual Studio C++ build prerequisites and toolset versions should be checked against the repository's solution and upstream WinDirStat build guidance.
+The Python pipeline uses the Python standard library.
 
 ## Clone and build
 
@@ -34,7 +30,7 @@ git clone https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use.git
 cd windirstat_CMSE_assignment_use
 ```
 
-Open the repository's `windirstat.sln` in Visual Studio, select the appropriate **x64** configuration, and choose **Build → Build Solution**. Use **Debug → Start Without Debugging (Ctrl+F5)** to run the *modified* WinDirStat, rather than an independently installed official WinDirStat.
+Open `windirstat.sln` in Visual Studio, select **x64**, and choose **Build → Build Solution**. Use **Debug → Start Without Debugging (Ctrl+F5)** to run the build from this repository.
 
 The C++ launcher searches upward from the executable directory for `ai_pipeline/app.py`, so keep the build output inside the cloned repository's directory tree. The launcher assumes `pythonw.exe` is discoverable via Windows. If it cannot be found, install Python 3.11 and verify Python is available from a fresh terminal.
 
@@ -43,17 +39,16 @@ The C++ launcher searches upward from the executable directory for `ai_pipeline/
 **The API key is never required for local analysis.** To enable external advice:
 
 1. Get an API key from [DeepSeek Platform](https://platform.deepseek.com/) and ensure the account has usable credits.
-2. In the repository root, copy the committed template to a local file:
+2. In the repository root, create `.env` from the template if you do not already have it.
    ```powershell
-   Copy-Item .env.example .env
+   if (-not (Test-Path -LiteralPath .env)) { Copy-Item -LiteralPath .env.example -Destination .env }
    ```
-3. Open `.env` and fill in the key:
+3. Open `.env` and set the key.
    ```dotenv
    DEEPSEEK_API_KEY=YOUR_OWN_KEY
    ```
-4. Save `.env`. The application reads this file **each time** AI advice is requested.
 
-The `.env` file is excluded by `.gitignore`; only the empty `.env.example` is committed. **Never commit real keys, paste them into issues, or share them publicly.** For a shared course-demo key, distribute it privately; any user of that key consumes the same account's credits. This local file is not encrypted, so protect access to the computer and rotate a shared key if it may have been exposed.
+The app reads the key when it is ready to send a confirmed request. Keep real keys in the ignored `.env` file. The repository template contains an empty key field.
 
 ## Run the application
 
@@ -62,11 +57,11 @@ The `.env` file is excluded by `.gitignore`; only the empty `.env.example` is co
 1. Start the locally built WinDirStat executable.
 2. Scan a drive or folder and allow the scan to finish.
 3. Select **Tools → AI Analysis**.
-4. In the AI window, choose **中文 / English**, set the minimum priority-file size and choose whether to use DeepSeek.
-5. Click **开始分析 / Analyze**. Review the space statistics and organization advice. Scroll to read longer answers.
-6. Change settings and click Analyze again as needed. The Python window can reuse its in-memory parsed report; enabling AI for another run makes another API call.
+4. Choose **中文 / English**, set the priority-file threshold and choose whether to enable DeepSeek. Leave the box unchecked for offline suggestions.
+5. Click **开始分析 / Analyze**. If DeepSeek is enabled, review the data-sharing prompt. Declining continues locally. The app also shows local suggestions if it receives no usable online findings.
+6. To get more help with an online result, choose **查看清理步骤 / View cleanup steps** on that item and confirm. The steps and possible effects appear below the item. For uncertain directories, the guide explains what to check before clearing anything. Reopening an already generated guide in the same language reuses it until you start a new analysis.
 
-The automatically created temporary report is intended for the integrated workflow. It is removed after reading, or when the window closes before analysis; previously parsed data can remain in memory until the window closes.
+The integrated workflow attempts to remove its temporary JSON report after reading it or closing the window. Parsed data stays in memory for repeat analysis while the window is open.
 
 ### Option B: Open a saved report directly
 
@@ -76,7 +71,7 @@ From the repository root:
 python -m ai_pipeline.app
 ```
 
-Use **选择报告 / Choose Report** to select an existing WinDirStat `.csv` or `.json` file. The application does **not** intentionally delete ordinary user-selected reports.
+Use **选择文件 / Choose file** to select an existing WinDirStat `.csv` or `.json` report. Keep private exports in the ignored `scan-reports/` directory if you store them inside the workspace. Imported reports support cache suggestions. Installed-app matching is available for fresh scans opened from WinDirStat.
 
 To pre-fill a report path:
 
@@ -90,6 +85,14 @@ For command-line aggregate inspection:
 python -m ai_pipeline.disk_analyzer "C:\path\to\scan.json" --min-mb 100
 ```
 
+For command-line cleanup advice:
+
+```powershell
+python -m ai_pipeline.ai_advisor "C:\path\to\scan.json" --language en
+```
+
+Add `--api` for online detection. The CLI requires an interactive terminal and an explicit `yes` before sending directory summaries.
+
 ## Testing and continuous integration
 
 Run the included Python unit tests from the repository root:
@@ -98,9 +101,9 @@ Run the included Python unit tests from the repository root:
 python -m unittest ai_pipeline.test_pipeline -v
 ```
 
-The repository contains 10 Python unit tests for report parsing and candidate selection. The GitHub Actions workflow at `.github/workflows/python-tests.yml` runs the same test command on Python 3.11 for pushes and pull requests. [Example successful workflow run](https://github.com/Eamonn-heiyaoai/windirstat_CMSE_assignment_use/actions/runs/45379180634).
+The Python unit tests cover report parsing, cleanup grouping and pagination, installed-app matching, and consent and payload checks for both DeepSeek requests. GitHub Actions runs the same command on Python 3.11 for pushes to the configured branches and pull requests targeting `master`. [.github/workflows/python-tests.yml](.github/workflows/python-tests.yml)
 
-These unit tests do **not** constitute automated coverage of the full native C++ GUI, DeepSeek network responses, or temporary-file lifecycle. End-to-end behavior was also exercised manually; further automated integration and failure-path tests are future work.
+The full Windows interface, live DeepSeek responses, and the temporary report lifecycle require separate integration testing.
 
 ## Architecture and privacy
 
@@ -109,13 +112,19 @@ WinDirStat C++ scanning/UI
     └── Tools → AI Analysis
           └── temporary JSON export (WinDirStat SaveResults)
                 └── ai_pipeline/report_parser.py
-                      └── ai_pipeline/disk_analyzer.py
-                            ├── Local statistics / generic advice
-                            └── Optional DeepSeek API (ai_advisor.py)
-                                  └── Suggestions in the Tkinter GUI (app.py)
+                      └── Tkinter interface (ai_pipeline/app.py)
+                            ├── Local statistics and cache rules (disk_analyzer.py)
+                            ├── Local installed-app matching (installed_apps.py)
+                            └── Confirmed online requests
+                                  ├── Redacted directory summaries (directory_summary.py)
+                                  └── Detection and per-item guidance (ai_advisor.py)
 ```
 
-The Python report parser operates on exported file-system **metadata**, not file contents. Its in-memory normalized records retain basenames, while the outgoing AI payload is explicitly constructed from aggregated counts, sizes, file extensions and anonymous large-file metadata. DeepSeek output is advisory text; no AI-generated instructions automatically perform file-system changes.
+- **Offline analysis** uses scan metadata and, for fresh WinDirStat scans, reads the local Windows uninstall registry. All processing stays on the device.
+- **Online detection** sends IDs, redacted labels and scanned sizes for up to 24 selected AppData directories. Displayed sizes come from the scan.
+- **Per-item guidance** sends the selected directory label, scanned size and whether its purpose needs verification. Both requests omit the drive, Windows profile folder, filenames, file contents and registry values. Remaining directory labels can reveal software or personal information.
+
+DeepSeek can misidentify folders or give inaccurate instructions. Confirm a folder's purpose and check the steps before making changes. Displayed sizes reflect scanned usage and can differ from the amount a cleanup frees. Files that could not be scanned may be absent from the results.
 
 ## Project evidence
 
