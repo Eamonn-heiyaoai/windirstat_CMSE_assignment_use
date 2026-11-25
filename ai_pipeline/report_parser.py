@@ -71,8 +71,8 @@ def normalize_record(row, row_number):
         row["WinDirStat Attributes"], row_number
     )
 
-    # Keep only the local filename, not the absolute path.
     file_name = PureWindowsPath(raw_name).name
+    physical_size = row["Physical Size"]
 
     extension = str(
         row.get("FileExtension", "")
@@ -83,13 +83,15 @@ def normalize_record(row, row_number):
 
     return {
         "file_name": file_name,
+        "file_path": raw_name,
         "item_type": item_type,
         "file_extension": extension,
         "logical_size_bytes": parse_size(
             row["Logical Size"], "Logical Size", row_number
         ),
-        "physical_size_bytes": parse_size(
-            row["Physical Size"], "Physical Size", row_number
+        "physical_size_bytes": (
+            None if physical_size is None or str(physical_size).strip() == ""
+            else parse_size(physical_size, "Physical Size", row_number)
         ),
         "last_change_utc": str(row["Last Change"]).strip(),
         "scan_outcome": str(row["ScanOutcome"]).strip().lower(),
@@ -141,6 +143,8 @@ if __name__ == "__main__":
 
     try:
         result = parse_report(sys.argv[1])
+        for record in result:
+            del record["file_path"]
         print(json.dumps(result, ensure_ascii=False, indent=2))
         print(f"\nSuccessfully parsed {len(result)} records.")
 

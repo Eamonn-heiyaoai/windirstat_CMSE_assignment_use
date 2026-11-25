@@ -1259,7 +1259,8 @@ void CMainFrame::OnToolsAIAnalysis() const
 
     // 4. Start the Python AI interface with the report path.
     const std::wstring parameters =
-        L"-m ai_pipeline.app \"" + reportPath.wstring() + L"\"";
+        L"-m ai_pipeline.app \"" + reportPath.wstring() + L"\"" +
+        (model->IsLiveScan() ? L" --live-scan" : L"");
 
     const std::wstring workingDir = projectRoot.wstring();
 

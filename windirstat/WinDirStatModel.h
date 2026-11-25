@@ -101,6 +101,7 @@ public:
     bool IsRootDone() const;
     bool IsScanRunning() const;
     bool IsScanSettled() const;
+    bool IsLiveScan() const { return m_isLiveScan; }
     void RunPendingHeapCleanup();
     CItem* GetRootItem() const { return m_rootItem; }
     CItem* GetZoomItem() const { return m_zoomItem; }
@@ -163,6 +164,7 @@ private:
     std::wstring m_scanTitle;
 
     CItem* m_rootItem = nullptr; // The very root item
+    bool m_isLiveScan = false;
     CItem* m_zoomItem = nullptr;   // Current "zoom root"
     std::wstring m_highlightExtension; // Currently highlighted extension
     bool m_highlightUnregistered = false; // Highlight all unregistered extensions instead of one

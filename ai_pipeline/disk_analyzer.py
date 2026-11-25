@@ -2,6 +2,7 @@
 import argparse
 import heapq
 import json
+import re
 from collections import defaultdict
 
 from ai_pipeline.report_parser import parse_report
@@ -10,6 +11,26 @@ from ai_pipeline.candidate_selector import classify_file
 
 MB = 1024 * 1024
 GB = 1024 * MB
+
+# Match known cache locations in Windows user profiles, regardless of which
+# machine produced the report. Keep the separator after each directory name.
+USER_APPDATA = r"[a-z]:\\users\\[^\\]+\\appdata\\"
+CLEANUP_LOCATIONS = {
+    "edge_cache": r"local\\microsoft\\edge\\user data\\(?:default|profile \d+)\\cache\\",
+    "chrome_cache": r"local\\google\\chrome\\user data\\(?:default|profile \d+)\\cache\\",
+    "firefox_cache": r"local\\mozilla\\firefox\\profiles\\[^\\]+\\cache2\\",
+    "user_temp": r"local\\temp\\",
+    "pip_cache": r"local\\pip\\cache\\(?:http(?:-v2)?|wheels)\\",
+    "vscode_cache": r"roaming\\code\\cachedextensionvsixs\\",
+    "vscode_insiders_cache": r"roaming\\code - insiders\\cachedextensionvsixs\\",
+    "discord_cache": r"roaming\\discord\\cache\\",
+    "npm_cache": r"local\\npm-cache\\_cacache\\",
+    "nuget_cache": r"local\\nuget\\v3-cache\\",
+}
+CLEANUP_PATTERNS = {
+    category: re.compile(USER_APPDATA + location)
+    for category, location in CLEANUP_LOCATIONS.items()
+}
 
 # File size intervals in bytes.
 SIZE_RANGES = [
@@ -54,6 +75,10 @@ def analyze_disk(records, min_size_mb=100):
     top_files_heap = []
     next_id = 0
     minimum_bytes = min_size_mb * MB
+    cleanup_totals = defaultdict(
+        lambda: {"size_bytes": 0, "uses_logical_size": False}
+    )
+    counted_cleanup_paths = set()
 
     for record in records:
         if record["item_type"] != "file":
@@ -69,6 +94,24 @@ def analyze_disk(records, min_size_mb=100):
 
         if size < 0:
             continue
+
+        path = record.get("file_path", "").replace("/", "\\").lower()
+        path = path.removeprefix("\\\\?\\")
+        if path and path not in counted_cleanup_paths:
+            for cleanup_category, pattern in CLEANUP_PATTERNS.items():
+                match = pattern.match(path)
+                if not match or match.end() == len(path):
+                    continue
+                if any(part in (".", "..") for part in path.split("\\")):
+                    break
+                physical_size = record.get("physical_size_bytes")
+                occupied = size if physical_size is None else physical_size
+                if occupied > 0:
+                    cleanup = cleanup_totals[cleanup_category]
+                    cleanup["size_bytes"] += occupied
+                    cleanup["uses_logical_size"] |= physical_size is None
+                counted_cleanup_paths.add(path)
+                break
 
         extension = str(
             record["file_extension"] or ""
@@ -189,7 +232,14 @@ def analyze_disk(records, min_size_mb=100):
         "large_file_percentage": percentage(large_file_bytes),
         "top_extensions": extension_results,
         "size_distribution": distribution_results,
-        "top_large_files": top_large_files
+        "top_large_files": top_large_files,
+        "cleanup_items": [
+            {"category": category, **totals}
+            for category, totals in sorted(
+                cleanup_totals.items(),
+                key=lambda item: (-item[1]["size_bytes"], item[0])
+            )
+        ]
     }
 
 
