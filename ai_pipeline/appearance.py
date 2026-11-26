@@ -1,5 +1,5 @@
 import sys
-from tkinter import ttk
+from tkinter import PhotoImage, ttk
 
 
 # WinDirStat's DarkMode::Color roles and the first color in its treemap palette.
@@ -32,9 +32,7 @@ def apply_dark_theme(root):
     style.map("TButton", background=[("disabled", CONTROL), ("pressed", WINDOW), ("active", LIGHT)],
               bordercolor=[("!disabled", "focus", GRAPH_BLUE), ("!disabled", "alternate", GRAPH_BLUE)],
               lightcolor=[("pressed", EDGE)], darkcolor=[("pressed", EDGE)])
-    style.configure("TCheckbutton", indicatorbackground=WINDOW, indicatorforeground=TEXT)
-    style.map("TCheckbutton", indicatorbackground=[("disabled", CONTROL), ("selected", SELECTION)],
-              indicatorforeground=[("disabled", DISABLED_TEXT), ("selected", SELECTION_TEXT)])
+    use_checkmark_indicator(root, style)
 
     for widget in ("TEntry", "TSpinbox", "TCombobox"):
         style.configure(widget, fieldbackground=WINDOW, insertcolor=TEXT)
@@ -62,6 +60,38 @@ def apply_dark_theme(root):
     root.configure(background=CONTROL)
     if sys.platform == "win32":
         root.bind("<Map>", set_dark_title_bar, add="+")
+
+
+def use_checkmark_indicator(root, style):
+    element = "Tick.Checkbutton.indicator"
+    if element in style.element_names():
+        return
+
+    def indicator(background, mark=None):
+        image = PhotoImage(master=root, width=18, height=16)
+        image.put(EDGE, to=(0, 1, 14, 15))
+        image.put(background, to=(1, 2, 13, 14))
+        if mark is not None:
+            for y, stroke in enumerate(("        ##", "       ##", "      ##", "##   ##",
+                                        " ## ##", "  ###", "   #"), start=4):
+                for x, pixel in enumerate(stroke, start=2):
+                    if pixel == "#":
+                        image.put(mark, to=(x, y))
+        return image
+
+    unchecked = indicator(WINDOW)
+    checked = indicator(SELECTION, SELECTION_TEXT)
+    disabled = indicator(CONTROL)
+    disabled_checked = indicator(CONTROL, DISABLED_TEXT)
+    root._checkbutton_images = (unchecked, checked, disabled, disabled_checked)
+    style.element_create(
+        element, "image", unchecked,
+        ("disabled", "selected", disabled_checked), ("disabled", disabled), ("selected", checked),
+    )
+    layout = style.layout("TCheckbutton")
+    children = layout[0][1]["children"]
+    children[0] = (element, children[0][1])
+    style.layout("TCheckbutton", layout)
 
 
 def set_dark_title_bar(event):
